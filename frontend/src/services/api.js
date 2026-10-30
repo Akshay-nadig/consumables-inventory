@@ -152,15 +152,27 @@ export async function getMaterials({ categoryId, search, status } = {}) {
 }
 
 export async function createMaterial(materialDto) {
+  const nowIST = getNowISTISOString();
+  const payload = {
+    ...materialDto,
+    createdAt: materialDto.createdAt || nowIST,
+    effectiveDate: materialDto.effectiveDate || nowIST,
+    transactionDate: materialDto.transactionDate || nowIST
+  };
+
   try {
     const res = await fetch('/api/materials', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(materialDto)
+      body: JSON.stringify(payload)
     });
     if (res.ok) {
       isBackendConnected = true;
-      return await res.json();
+      const created = await res.json();
+      if (created && created.id) {
+        localStorage.setItem(`material_created_ist_${created.id}`, nowIST);
+      }
+      return created;
     }
   } catch (err) {
     // Fallback
@@ -239,11 +251,18 @@ export async function createMaterial(materialDto) {
 }
 
 export async function updateMaterial(id, materialDto) {
+  const nowIST = getNowISTISOString();
+  const payload = {
+    ...materialDto,
+    effectiveDate: materialDto.effectiveDate || nowIST,
+    updatedAt: nowIST
+  };
+
   try {
     const res = await fetch(`/api/materials/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(materialDto)
+      body: JSON.stringify(payload)
     });
     if (res.ok) {
       isBackendConnected = true;
@@ -317,7 +336,21 @@ export async function getMaterialCostHistory(materialId) {
     const res = await fetch(`/api/materials/${materialId}/cost-history`);
     if (res.ok) {
       isBackendConnected = true;
-      return await res.json();
+      const history = await res.json();
+      const cachedCreated = localStorage.getItem(`material_created_ist_${materialId}`);
+      return (history || []).map(h => {
+        if (h.changeReason === 'Initial Item Registration') {
+          if (cachedCreated) {
+            return { ...h, effectiveDate: cachedCreated };
+          }
+          const s = String(h.effectiveDate || '').trim();
+          if (s && !s.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(s)) {
+            // Backend stored DateTime.UtcNow without 'Z'; appending 'Z' parses 10:00 UTC -> 3:30 PM IST correctly
+            return { ...h, effectiveDate: `${s}Z` };
+          }
+        }
+        return h;
+      });
     }
   } catch (err) {
     // Fallback

@@ -29,6 +29,9 @@ namespace ConsumablesInventory.API.Models
         public decimal UnitPrice { get; set; } = 0.00m;
 
         public string? StorageLocation { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public DateTime? EffectiveDate { get; set; }
+        public DateTime? TransactionDate { get; set; }
     }
 
     public class UpdateMaterialDto
@@ -55,6 +58,8 @@ namespace ConsumablesInventory.API.Models
 
         public string? ChangedBy { get; set; }
         public string? ChangeReason { get; set; }
+        public DateTime? EffectiveDate { get; set; }
+        public DateTime? UpdatedAt { get; set; }
     }
 
     public class CreateInwardTransactionDto

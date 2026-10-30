@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Sparkles, AlertCircle, Package } from 'lucide-react';
 import StorageLocationFields from './StorageLocationFields';
 import { buildStorageLocation, CATEGORY_LOCATION_SUGGESTIONS, parseStorageLocation } from '../utils/storageLocation';
+import { getNowISTISOString } from '../utils/formatters';
 
 const COMMON_UOMS = [
   'Pcs', 'Box', 'Pack', 'Ream', 'Roll', 'Unit', 'Set', 
@@ -128,7 +129,10 @@ export default function MaterialModal({
         unitPrice: Number(unitPrice) || 0,
         storageLocation: buildStorageLocation(storageZone, storageRack, storageDetails),
         changeReason: changeReason?.trim() || 'Manual Cost Adjustment',
-        changedBy: 'Store Manager'
+        changedBy: 'Store Manager',
+        createdAt: getNowISTISOString(),
+        effectiveDate: getNowISTISOString(),
+        transactionDate: getNowISTISOString()
       });
       onClose();
     } catch (err) {

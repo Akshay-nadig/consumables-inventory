@@ -109,7 +109,7 @@ namespace ConsumablesInventory.API.Controllers
                     NewCost = dto.UnitPrice!.Value,
                     ChangeReason = $"Stock Inward ({dto.ReferenceNumber?.Trim() ?? "Receipt"})",
                     ChangedBy = dto.ReceivedBy?.Trim() ?? "Storekeeper",
-                    EffectiveDate = dto.TransactionDate ?? DateTime.UtcNow,
+                    EffectiveDate = dto.TransactionDate ?? DateTime.Now,
                     Notes = $"Inward of {dto.Quantity} {material.UnitOfMeasure} at ₹{dto.UnitPrice.Value:F2}. Preserved {material.PreviousCostStock} {material.UnitOfMeasure} at ₹{material.PreviousCost:F2}."
                 };
                 _context.MaterialCostHistories.Add(costHistory);
@@ -124,7 +124,7 @@ namespace ConsumablesInventory.API.Controllers
 
             // Sync total stock from both buckets
             material.CurrentStock = material.PreviousCostStock + material.CurrentCostStock;
-            material.UpdatedAt = DateTime.UtcNow;
+            material.UpdatedAt = DateTime.Now;
 
             var transaction = new InventoryTransaction
             {
@@ -138,7 +138,7 @@ namespace ConsumablesInventory.API.Controllers
                 PartyName = dto.SupplierName?.Trim() ?? "Vendor Direct",
                 HandledBy = dto.ReceivedBy?.Trim() ?? "Storekeeper",
                 Remarks = dto.Remarks?.Trim(),
-                TransactionDate = dto.TransactionDate ?? DateTime.UtcNow
+                TransactionDate = dto.TransactionDate ?? DateTime.Now
             };
 
             _context.InventoryTransactions.Add(transaction);
@@ -204,7 +204,7 @@ namespace ConsumablesInventory.API.Controllers
             }
 
             material.CurrentStock = material.PreviousCostStock + material.CurrentCostStock;
-            material.UpdatedAt = DateTime.UtcNow;
+            material.UpdatedAt = DateTime.Now;
 
             // Outward transaction valuation (weighted by consumed costs)
             decimal totalDeductedVal = (deductedFromPrevious * material.PreviousCost) + (deductedFromCurrent * material.UnitPrice);
@@ -222,7 +222,7 @@ namespace ConsumablesInventory.API.Controllers
                 PartyName = dto.DepartmentOrEmployee.Trim(),
                 HandledBy = dto.IssuedBy?.Trim() ?? "Storekeeper",
                 Remarks = dto.Remarks?.Trim(),
-                TransactionDate = dto.TransactionDate ?? DateTime.UtcNow
+                TransactionDate = dto.TransactionDate ?? DateTime.Now
             };
 
             _context.InventoryTransactions.Add(transaction);

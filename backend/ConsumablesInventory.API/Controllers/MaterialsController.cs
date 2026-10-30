@@ -116,11 +116,13 @@ namespace ConsumablesInventory.API.Controllers
                 PreviousCostStock = 0,
                 CurrentCostStock = dto.InitialStock,
                 StorageLocation = dto.StorageLocation?.Trim(),
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = dto.CreatedAt ?? dto.TransactionDate ?? DateTime.Now
             };
 
             _context.Materials.Add(material);
             await _context.SaveChangesAsync();
+
+            var effectiveDate = dto.EffectiveDate ?? dto.TransactionDate ?? DateTime.Now;
 
             // Record initial cost history entry
             var costHistory = new MaterialCostHistory
@@ -130,7 +132,7 @@ namespace ConsumablesInventory.API.Controllers
                 NewCost = dto.UnitPrice,
                 ChangeReason = "Initial Item Registration",
                 ChangedBy = "System Administrator",
-                EffectiveDate = DateTime.UtcNow,
+                EffectiveDate = effectiveDate,
                 Notes = $"Initial standard unit cost recorded at ₹{dto.UnitPrice:F2}"
             };
             _context.MaterialCostHistories.Add(costHistory);
@@ -150,7 +152,7 @@ namespace ConsumablesInventory.API.Controllers
                     PartyName = "Initial Stock Audit",
                     HandledBy = "System Administrator",
                     Remarks = "Opening balance entry during material registration",
-                    TransactionDate = DateTime.UtcNow
+                    TransactionDate = dto.TransactionDate ?? effectiveDate
                 };
 
                 _context.InventoryTransactions.Add(initialTx);
@@ -240,7 +242,7 @@ namespace ConsumablesInventory.API.Controllers
                     NewCost = dto.UnitPrice,
                     ChangeReason = string.IsNullOrWhiteSpace(dto.ChangeReason) ? "Manual Cost Adjustment" : dto.ChangeReason.Trim(),
                     ChangedBy = string.IsNullOrWhiteSpace(dto.ChangedBy) ? "Store Manager" : dto.ChangedBy.Trim(),
-                    EffectiveDate = DateTime.UtcNow,
+                    EffectiveDate = dto.EffectiveDate ?? DateTime.Now,
                     Notes = $"Unit cost adjusted from ₹{material.UnitPrice:F2} to ₹{dto.UnitPrice:F2}. Existing {material.PreviousCostStock} {material.UnitOfMeasure} held at ₹{material.PreviousCost:F2}."
                 };
                 _context.MaterialCostHistories.Add(history);
@@ -254,7 +256,7 @@ namespace ConsumablesInventory.API.Controllers
             material.UnitOfMeasure = dto.UnitOfMeasure.Trim();
             material.MinimumReorderLevel = dto.MinimumReorderLevel;
             material.StorageLocation = dto.StorageLocation?.Trim();
-            material.UpdatedAt = DateTime.UtcNow;
+            material.UpdatedAt = dto.UpdatedAt ?? DateTime.Now;
 
             await _context.SaveChangesAsync();
             material.Category = category;
