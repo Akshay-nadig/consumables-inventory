@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowDownToLine, AlertCircle, CheckCircle2, Search, Check } from 'lucide-react';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, getNowISTISOString } from '../utils/formatters';
 import StorageLocationFields from './StorageLocationFields';
 import { buildStorageLocation, parseStorageLocation } from '../utils/storageLocation';
 
@@ -97,7 +97,7 @@ export default function InwardModal({
         receivedBy: receivedBy.trim(),
         remarks: remarks.trim(),
         storageLocation: buildStorageLocation(storageZone, storageRack, storageDetails),
-        transactionDate: new Date().toISOString()
+        transactionDate: getNowISTISOString()
       });
       onClose();
     } catch (err) {

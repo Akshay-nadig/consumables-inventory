@@ -214,16 +214,9 @@ export default function MaterialsTab({
                 const location = parseStorageLocation(item.storageLocation || '');
                 const hasLocation = Boolean(location.zone || location.rack || location.details);
                 
-                const prevCost = Number(item.previousCost) || 0;
-                const prevStock = Number(item.previousCostStock) || 0;
-                const currCost = Number(item.unitPrice) || 0;
-                const currStock = item.currentCostStock !== undefined ? Number(item.currentCostStock) : Math.max(0, item.currentStock - prevStock);
-                
-                const prevVal = prevStock * prevCost;
-                const currVal = currStock * currCost;
-                const totalVal = item.totalValue !== undefined && item.totalValue > 0 
-                  ? Number(item.totalValue) 
-                  : prevVal + currVal;
+                const currentPrice = Number(item.unitPrice) || 0;
+                const totalCost = Number(item.totalCost !== undefined ? item.totalCost : (item.totalValue !== undefined ? item.totalValue : item.currentStock * currentPrice)) || 0;
+                const effectiveAvgCost = item.currentStock > 0 ? (totalCost / item.currentStock) : currentPrice;
 
                 return (
                   <tr key={item.id}>
@@ -278,39 +271,28 @@ export default function MaterialsTab({
                     {/* Unit Cost */}
                     <td className="font-mono">
                       <div style={{ fontWeight: 600, color: 'var(--text-white)', fontSize: '0.85rem' }}>
-                        {formatCurrency(currCost)}
+                        {formatCurrency(currentPrice)}
                       </div>
-                      {prevStock > 0 && prevCost > 0 ? (
-                        <div 
-                          style={{ fontSize: '0.68rem', color: '#facc15', marginTop: '0.15rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
-                          title={`${prevStock} ${item.unitOfMeasure} held at previous cost ${formatCurrency(prevCost)}`}
-                        >
-                          <span>Prev:</span>
-                          <span>{formatCurrency(prevCost)}</span>
-                          <span style={{ opacity: 0.85 }}>({prevStock})</span>
-                        </div>
-                      ) : (
-                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
-                          Current cost
-                        </div>
-                      )}
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                        Active price
+                      </div>
                     </td>
 
-                    {/* Total Value */}
+                    {/* Total Cost */}
                     <td className="font-mono">
                       <div style={{ fontWeight: 700, color: '#34d399', fontSize: '0.88rem' }}>
-                        {formatCurrency(totalVal)}
+                        {formatCurrency(totalCost)}
                       </div>
-                      {prevStock > 0 && prevCost > 0 ? (
+                      {item.currentStock > 0 ? (
                         <div 
                           style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}
-                          title={`Previous stock value (${formatCurrency(prevVal)}) + Current stock value (${formatCurrency(currVal)})`}
+                          title={`Effective average cost: ${formatCurrency(effectiveAvgCost)} per ${item.unitOfMeasure}`}
                         >
-                          {formatCurrency(prevVal)} + {formatCurrency(currVal)}
+                          Avg: {formatCurrency(effectiveAvgCost)}/{item.unitOfMeasure}
                         </div>
                       ) : (
                         <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
-                          {item.currentStock} × {formatCurrency(currCost)}
+                          0 stock on hand
                         </div>
                       )}
                     </td>
@@ -376,7 +358,7 @@ export default function MaterialsTab({
                             borderColor: 'rgba(99, 102, 241, 0.3)'
                           }}
                           onClick={() => onOpenCostHistory(item)}
-                          title="View Cost History & Valuation Breakdown"
+                          title="View Price History & Total Cost Breakdown"
                         >
                           <History size={13} />
                           <span>History</span>

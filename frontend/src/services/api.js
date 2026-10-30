@@ -1,4 +1,5 @@
 import { SEED_CATEGORIES, SEED_MATERIALS, SEED_TRANSACTIONS, SEED_COST_HISTORIES } from './seedData';
+import { getNowISTISOString } from '../utils/formatters';
 
 const STORAGE_KEYS = {
   CATEGORIES: 'consumables_categories_v2_inr',
@@ -15,14 +16,25 @@ function initStorage() {
   if (!localStorage.getItem(STORAGE_KEYS.MATERIALS)) {
     localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(SEED_MATERIALS));
   } else {
-    // Migration: ensure materials in localStorage have two-bucket fields
+    // Migration: ensure materials have accurate totalCost and remove legacy previousCost buckets
     try {
       const mats = JSON.parse(localStorage.getItem(STORAGE_KEYS.MATERIALS));
       let changed = false;
       mats.forEach(m => {
-        if (m.previousCost === undefined) { m.previousCost = 0; changed = true; }
-        if (m.previousCostStock === undefined) { m.previousCostStock = 0; changed = true; }
-        if (m.currentCostStock === undefined) { m.currentCostStock = m.currentStock || 0; changed = true; }
+        if (m.totalCost === undefined) {
+          m.totalCost = m.totalValue !== undefined 
+            ? Number(m.totalValue) 
+            : (Number(m.currentStock) || 0) * (Number(m.unitPrice) || 0);
+          changed = true;
+        }
+        m.totalValue = m.totalCost;
+        if (m.previousCost !== undefined || m.previousCostStock !== undefined || m.currentCostStock !== undefined || m.previousCostBreakdown !== undefined) {
+          delete m.previousCost;
+          delete m.previousCostStock;
+          delete m.currentCostStock;
+          delete m.previousCostBreakdown;
+          changed = true;
+        }
       });
       if (changed) localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(mats));
     } catch (e) { }
@@ -100,18 +112,14 @@ export async function getMaterials({ categoryId, search, status } = {}) {
   const catMap = Object.fromEntries(categories.map(c => [c.id, c]));
 
   let filtered = materials.map(m => {
-    const prevCost = Number(m.previousCost) || 0;
-    const prevStock = Number(m.previousCostStock) || 0;
-    const currCost = Number(m.unitPrice) || 0;
-    const currStock = m.currentCostStock !== undefined ? Number(m.currentCostStock) : Number(m.currentStock) || 0;
-    const totalVal = m.totalValue !== undefined ? Number(m.totalValue) : (prevStock * prevCost) + (currStock * currCost);
+    const totalCost = m.totalCost !== undefined 
+      ? Number(m.totalCost) 
+      : (m.totalValue !== undefined ? Number(m.totalValue) : (Number(m.currentStock) || 0) * (Number(m.unitPrice) || 0));
 
     return {
       ...m,
-      previousCost: prevCost,
-      previousCostStock: prevStock,
-      currentCostStock: currStock,
-      totalValue: totalVal,
+      totalCost,
+      totalValue: totalCost,
       category: catMap[m.categoryId] || { name: 'Unknown' }
     };
   });
@@ -178,18 +186,16 @@ export async function createMaterial(materialDto) {
     currentStock: initialStock,
     minimumReorderLevel: Number(materialDto.minimumReorderLevel) || 10,
     unitPrice: unitPrice,
-    previousCost: 0.00,
-    previousCostStock: 0,
-    currentCostStock: initialStock,
+    totalCost: initialStock * unitPrice,
     totalValue: initialStock * unitPrice,
     storageLocation: materialDto.storageLocation?.trim() || '',
-    createdAt: new Date().toISOString()
+    createdAt: getNowISTISOString()
   };
 
   materials.push(newMaterial);
   localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(materials));
 
-  // Log initial cost history entry
+  // Log initial price history entry
   const histories = JSON.parse(localStorage.getItem(STORAGE_KEYS.COST_HISTORIES) || '[]');
   const histId = histories.length > 0 ? Math.max(...histories.map(h => h.id)) + 1 : 1;
   histories.unshift({
@@ -203,8 +209,8 @@ export async function createMaterial(materialDto) {
     percentageChange: 0,
     changeReason: 'Initial Item Registration',
     changedBy: 'System Administrator',
-    effectiveDate: new Date().toISOString(),
-    notes: `Initial standard unit cost recorded at ₹${unitPrice.toFixed(2)}`
+    effectiveDate: getNowISTISOString(),
+    notes: `Initial standard unit price recorded at ₹${unitPrice.toFixed(2)}`
   });
   localStorage.setItem(STORAGE_KEYS.COST_HISTORIES, JSON.stringify(histories));
 
@@ -224,7 +230,7 @@ export async function createMaterial(materialDto) {
       partyName: 'Initial Opening Balance',
       handledBy: 'System Administrator',
       remarks: 'Initial stock entered during creation',
-      transactionDate: new Date().toISOString()
+      transactionDate: getNowISTISOString()
     });
     localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(transactions));
   }
@@ -264,26 +270,7 @@ export async function updateMaterial(id, materialDto) {
   const priceChanged = !isNaN(newUnitPrice) && newUnitPrice !== oldUnitPrice;
 
   if (priceChanged) {
-    // Preserve existing stock at PreviousCost!
-    const totalRemaining = material.currentStock || 0;
-    if (totalRemaining > 0) {
-      const prevStock = Number(material.previousCostStock) || 0;
-      const prevCost = Number(material.previousCost) || 0;
-      const currStock = material.currentCostStock !== undefined ? Number(material.currentCostStock) : totalRemaining;
-      const prevTotalVal = (prevStock * prevCost) + (currStock * oldUnitPrice);
-      material.previousCost = Math.round((prevTotalVal / totalRemaining) * 100) / 100;
-      material.previousCostStock = totalRemaining;
-      material.previousCostBreakdown = prevStock > 0 && prevCost > 0 && Math.abs(prevCost - oldUnitPrice) > 0.01
-        ? `[(${prevStock} × ₹${prevCost.toFixed(2)}) + (${currStock} × ₹${oldUnitPrice.toFixed(2)})] ÷ ${totalRemaining} = ₹${material.previousCost.toFixed(2)}`
-        : `${totalRemaining} ${material.unitOfMeasure || 'units'} locked at pre-revision rate ₹${oldUnitPrice.toFixed(2)}`;
-    } else {
-      material.previousCost = oldUnitPrice;
-      material.previousCostStock = 0;
-      material.previousCostBreakdown = `Previous rate ₹${oldUnitPrice.toFixed(2)} (0 units held)`;
-    }
-    material.currentCostStock = 0; // newly received stock will take new unitPrice
-
-    // Log cost history
+    // Log price revision history
     const histories = JSON.parse(localStorage.getItem(STORAGE_KEYS.COST_HISTORIES) || '[]');
     const histId = histories.length > 0 ? Math.max(...histories.map(h => h.id)) + 1 : 1;
     histories.unshift({
@@ -295,10 +282,10 @@ export async function updateMaterial(id, materialDto) {
       newCost: newUnitPrice,
       difference: newUnitPrice - oldUnitPrice,
       percentageChange: oldUnitPrice > 0 ? ((newUnitPrice - oldUnitPrice) / oldUnitPrice) * 100 : 0,
-      changeReason: materialDto.changeReason || 'Manual Cost Adjustment',
+      changeReason: materialDto.changeReason || 'Catalogue Price Revision',
       changedBy: materialDto.changedBy || 'Store Manager',
-      effectiveDate: new Date().toISOString(),
-      notes: `Unit cost adjusted from ₹${oldUnitPrice.toFixed(2)} to ₹${newUnitPrice.toFixed(2)}. Existing ${material.previousCostStock} ${material.unitOfMeasure} held at ₹${material.previousCost.toFixed(2)}.`
+      effectiveDate: getNowISTISOString(),
+      notes: `Standard unit price adjusted from ₹${oldUnitPrice.toFixed(2)} to ₹${newUnitPrice.toFixed(2)}. Total inventory cost remains tracked by actual stock additions.`
     });
     localStorage.setItem(STORAGE_KEYS.COST_HISTORIES, JSON.stringify(histories));
 
@@ -312,8 +299,12 @@ export async function updateMaterial(id, materialDto) {
   material.unitOfMeasure = materialDto.unitOfMeasure?.trim() || material.unitOfMeasure;
   material.minimumReorderLevel = Number(materialDto.minimumReorderLevel) || material.minimumReorderLevel;
   material.storageLocation = materialDto.storageLocation?.trim();
-  material.updatedAt = new Date().toISOString();
-  material.totalValue = ((material.previousCostStock || 0) * (material.previousCost || 0)) + ((material.currentCostStock || 0) * material.unitPrice);
+  material.updatedAt = getNowISTISOString();
+  
+  // Total cost remains accurately tracked from stock additions; ensure totalValue stays in sync
+  const currentTotalCost = Number(material.totalCost !== undefined ? material.totalCost : material.totalValue);
+  material.totalCost = !isNaN(currentTotalCost) ? currentTotalCost : (material.currentStock || 0) * material.unitPrice;
+  material.totalValue = material.totalCost;
 
   materials[materialIndex] = material;
   localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(materials));
@@ -373,26 +364,16 @@ export async function recordInward(inwardDto) {
   const inwardPrice = inwardDto.unitPrice ? Number(inwardDto.unitPrice) : material.unitPrice;
   const priceChanged = inwardDto.unitPrice && Number(inwardDto.unitPrice) !== material.unitPrice;
 
-  if (priceChanged) {
-    const totalRemaining = material.currentStock || 0;
-    if (totalRemaining > 0) {
-      const prevStock = Number(material.previousCostStock) || 0;
-      const prevCost = Number(material.previousCost) || 0;
-      const currStock = material.currentCostStock !== undefined ? Number(material.currentCostStock) : totalRemaining;
-      const prevTotalVal = (prevStock * prevCost) + (currStock * material.unitPrice);
-      material.previousCost = Math.round((prevTotalVal / totalRemaining) * 100) / 100;
-      material.previousCostStock = totalRemaining;
-      material.previousCostBreakdown = prevStock > 0 && prevCost > 0 && Math.abs(prevCost - material.unitPrice) > 0.01
-        ? `[(${prevStock} × ₹${prevCost.toFixed(2)}) + (${currStock} × ₹${material.unitPrice.toFixed(2)})] ÷ ${totalRemaining} = ₹${material.previousCost.toFixed(2)}`
-        : `${totalRemaining} ${material.unitOfMeasure || 'units'} locked at pre-inward rate ₹${material.unitPrice.toFixed(2)}`;
-    } else {
-      material.previousCost = material.unitPrice;
-      material.previousCostStock = 0;
-      material.previousCostBreakdown = `Previous rate ₹${material.unitPrice.toFixed(2)} (0 units held)`;
-    }
-    material.currentCostStock = qty;
+  // Add to total inventory cost directly as items are received
+  const addedCost = qty * inwardPrice;
+  const currentTotalCost = Number(material.totalCost !== undefined ? material.totalCost : material.totalValue) || 0;
+  material.totalCost = Math.round((currentTotalCost + addedCost) * 100) / 100;
+  material.totalValue = material.totalCost;
+  material.currentStock = (Number(material.currentStock) || 0) + qty;
 
-    // Log cost history
+  if (priceChanged) {
+    const oldUnitPrice = material.unitPrice;
+    // Log price revision history
     const histories = JSON.parse(localStorage.getItem(STORAGE_KEYS.COST_HISTORIES) || '[]');
     const histId = histories.length > 0 ? Math.max(...histories.map(h => h.id)) + 1 : 1;
     histories.unshift({
@@ -400,24 +381,20 @@ export async function recordInward(inwardDto) {
       materialId: material.id,
       materialName: material.name,
       itemCode: material.itemCode,
-      previousCost: material.unitPrice,
+      previousCost: oldUnitPrice,
       newCost: inwardPrice,
-      difference: inwardPrice - material.unitPrice,
-      percentageChange: material.unitPrice > 0 ? ((inwardPrice - material.unitPrice) / material.unitPrice) * 100 : 0,
+      difference: inwardPrice - oldUnitPrice,
+      percentageChange: oldUnitPrice > 0 ? ((inwardPrice - oldUnitPrice) / oldUnitPrice) * 100 : 0,
       changeReason: `Stock Inward (${inwardDto.referenceNumber?.trim() || 'PO'})`,
       changedBy: inwardDto.receivedBy?.trim() || 'Storekeeper',
-      effectiveDate: inwardDto.transactionDate || new Date().toISOString(),
-      notes: `Inward of ${qty} ${material.unitOfMeasure} at ₹${inwardPrice.toFixed(2)}. Preserved ${material.previousCostStock} ${material.unitOfMeasure} at ₹${material.previousCost.toFixed(2)}.`
+      effectiveDate: inwardDto.transactionDate || getNowISTISOString(),
+      notes: `Received ${qty} ${material.unitOfMeasure} at ₹${inwardPrice.toFixed(2)}. Added ₹${addedCost.toFixed(2)} to item total cost.`
     });
     localStorage.setItem(STORAGE_KEYS.COST_HISTORIES, JSON.stringify(histories));
 
     material.unitPrice = inwardPrice;
-  } else {
-    material.currentCostStock = (Number(material.currentCostStock) || 0) + qty;
   }
 
-  material.currentStock = (Number(material.previousCostStock) || 0) + (Number(material.currentCostStock) || 0);
-  material.totalValue = ((material.previousCostStock || 0) * (material.previousCost || 0)) + ((material.currentCostStock || 0) * material.unitPrice);
   materials[materialIndex] = material;
   localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(materials));
 
@@ -431,13 +408,13 @@ export async function recordInward(inwardDto) {
     transactionType: 'INWARD',
     quantity: qty,
     unitPrice: inwardPrice,
-    totalAmount: qty * inwardPrice,
+    totalAmount: addedCost,
     balanceAfter: material.currentStock,
     referenceNumber: inwardDto.referenceNumber?.trim() || `PO-${Date.now().toString().slice(-6)}`,
     partyName: inwardDto.supplierName?.trim() || 'Vendor Direct',
     handledBy: inwardDto.receivedBy?.trim() || 'Storekeeper',
     remarks: inwardDto.remarks?.trim() || '',
-    transactionDate: inwardDto.transactionDate || new Date().toISOString()
+    transactionDate: inwardDto.transactionDate || getNowISTISOString()
   };
 
   transactions.unshift(newTx);
@@ -481,35 +458,19 @@ export async function recordOutward(outwardDto) {
     throw new Error(`Insufficient stock for ${material.name}. Available: ${material.currentStock} ${material.unitOfMeasure}, Requested: ${qty} ${material.unitOfMeasure}.`);
   }
 
-  // FIFO Outward deduction: consume from previousCostStock first, then currentCostStock
-  let remaining = qty;
-  let deductedFromPrev = 0;
-  let deductedFromCurr = 0;
+  const oldStock = Number(material.currentStock) || 0;
+  const currentTotalCost = Number(material.totalCost !== undefined ? material.totalCost : material.totalValue) || 0;
+  const unitCostAtIssue = oldStock > 0 ? (currentTotalCost / oldStock) : (Number(material.unitPrice) || 0);
 
-  if (material.previousCostStock > 0) {
-    if (material.previousCostStock >= remaining) {
-      material.previousCostStock -= remaining;
-      deductedFromPrev = remaining;
-      remaining = 0;
-    } else {
-      deductedFromPrev = material.previousCostStock;
-      remaining -= material.previousCostStock;
-      material.previousCostStock = 0;
-    }
-  }
+  const costDeducted = Math.min(currentTotalCost, Math.round((qty * unitCostAtIssue) * 100) / 100);
+  material.currentStock = Math.max(0, oldStock - qty);
+  material.totalCost = material.currentStock > 0 ? Math.max(0, Math.round((currentTotalCost - costDeducted) * 100) / 100) : 0;
+  material.totalValue = material.totalCost;
 
-  if (remaining > 0) {
-    deductedFromCurr = remaining;
-    material.currentCostStock = Math.max(0, (material.currentCostStock || 0) - remaining);
-  }
-
-  material.currentStock = (material.previousCostStock || 0) + (material.currentCostStock || 0);
-  material.totalValue = ((material.previousCostStock || 0) * (material.previousCost || 0)) + ((material.currentCostStock || 0) * material.unitPrice);
   materials[materialIndex] = material;
   localStorage.setItem(STORAGE_KEYS.MATERIALS, JSON.stringify(materials));
 
-  const totalDeductedVal = (deductedFromPrev * (material.previousCost || 0)) + (deductedFromCurr * material.unitPrice);
-  const effectiveOutwardPrice = qty > 0 ? Math.round((totalDeductedVal / qty) * 100) / 100 : material.unitPrice;
+  const effectiveOutwardPrice = Math.round(unitCostAtIssue * 100) / 100;
 
   const transactions = JSON.parse(localStorage.getItem(STORAGE_KEYS.TRANSACTIONS) || '[]');
   const txId = transactions.length > 0 ? Math.max(...transactions.map(t => t.id)) + 1 : 1;
@@ -521,13 +482,13 @@ export async function recordOutward(outwardDto) {
     transactionType: 'OUTWARD',
     quantity: qty,
     unitPrice: effectiveOutwardPrice,
-    totalAmount: totalDeductedVal,
+    totalAmount: costDeducted,
     balanceAfter: material.currentStock,
     referenceNumber: outwardDto.referenceNumber?.trim() || `REQ-${Date.now().toString().slice(-6)}`,
     partyName: outwardDto.departmentOrEmployee?.trim() || 'General Requester',
     handledBy: outwardDto.issuedBy?.trim() || 'Storekeeper',
     remarks: outwardDto.remarks?.trim() || '',
-    transactionDate: outwardDto.transactionDate || new Date().toISOString()
+    transactionDate: outwardDto.transactionDate || getNowISTISOString()
   };
 
   transactions.unshift(newTx);
@@ -614,11 +575,7 @@ export async function getDashboardSummary() {
     .reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
 
   const calculateMatVal = (m) => {
-    const prevStock = Number(m.previousCostStock) || 0;
-    const prevCost = Number(m.previousCost) || 0;
-    const currStock = m.currentCostStock !== undefined ? Number(m.currentCostStock) : Number(m.currentStock) || 0;
-    const currCost = Number(m.unitPrice) || 0;
-    return (prevStock * prevCost) + (currStock * currCost);
+    return Number(m.totalCost !== undefined ? m.totalCost : (m.totalValue !== undefined ? m.totalValue : (Number(m.currentStock) || 0) * (Number(m.unitPrice) || 0))) || 0;
   };
 
   const categoryBreakdown = categories.map(cat => {

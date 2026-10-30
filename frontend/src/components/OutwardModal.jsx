@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowUpFromLine, AlertTriangle, AlertCircle, Search, Check, CheckCircle2 } from 'lucide-react';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, getNowISTISOString } from '../utils/formatters';
 
 const COMMON_DEPTS = [
   'Engineering & Development',
@@ -96,7 +96,7 @@ export default function OutwardModal({
         referenceNumber: referenceNumber.trim(),
         issuedBy: issuedBy.trim(),
         remarks: remarks.trim(),
-        transactionDate: new Date().toISOString()
+        transactionDate: getNowISTISOString()
       });
       onClose();
     } catch (err) {

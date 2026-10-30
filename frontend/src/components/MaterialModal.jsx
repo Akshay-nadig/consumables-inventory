@@ -270,7 +270,7 @@ export default function MaterialModal({
 
               {/* Unit Price */}
               <div className="form-group">
-                <label className="form-label">{isEdit ? 'Current Active Unit Cost (₹) *' : 'Standard Unit Cost (₹) *'}</label>
+                <label className="form-label">{isEdit ? 'Current Active Unit Price (₹) *' : 'Standard Unit Price (₹) *'}</label>
                 <input
                   type="number"
                   step="0.01"
@@ -283,8 +283,8 @@ export default function MaterialModal({
                 />
                 <span className="form-help-text">
                   {isEdit 
-                    ? 'Updating this cost will keep existing on-hand stock at previous cost.'
-                    : 'Initial standard unit cost for inventory valuation'}
+                    ? 'Updating this price will be logged in Price History without altering existing stock total cost.'
+                    : 'Initial standard unit purchase price'}
                 </span>
               </div>
 
@@ -310,11 +310,11 @@ export default function MaterialModal({
                 </p>
               )}
 
-              {/* Cost Change Reason (Shown when editing if price differs) */}
+              {/* Price Change Reason (Shown when editing if price differs) */}
               {isEdit && Number(unitPrice) !== Number(initialMaterial?.unitPrice) && (
                 <div className="form-group col-span-2" style={{ background: 'rgba(99, 102, 241, 0.08)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(99, 102, 241, 0.25)' }}>
                   <label className="form-label" style={{ color: 'var(--primary-light)' }}>
-                    Reason for Cost Revision (Saved to Cost History)
+                    Reason for Price Revision (Saved to Price History)
                   </label>
                   <input
                     type="text"
@@ -324,7 +324,7 @@ export default function MaterialModal({
                     onChange={e => setChangeReason(e.target.value)}
                   />
                   <span className="form-help-text" style={{ color: 'var(--text-muted)' }}>
-                    Previous cost {initialMaterial?.unitPrice ? `(₹${Number(initialMaterial.unitPrice).toFixed(2)})` : ''} will be logged in the material's cost history.
+                    Previous price {initialMaterial?.unitPrice ? `(₹${Number(initialMaterial.unitPrice).toFixed(2)})` : ''} will be logged in the item's price change history.
                   </span>
                 </div>
               )}

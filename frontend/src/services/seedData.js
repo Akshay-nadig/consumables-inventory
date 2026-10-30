@@ -328,15 +328,13 @@ export const SEED_TRANSACTIONS = [
   }
 ];
 
-// Ensure all seed materials have two-bucket properties initialized
+// Ensure all seed materials have totalCost initialized
 SEED_MATERIALS.forEach(m => {
-  if (m.previousCost === undefined) m.previousCost = 0;
-  if (m.previousCostStock === undefined) m.previousCostStock = 0;
-  if (m.currentCostStock === undefined) m.currentCostStock = m.currentStock || 0;
-  if (m.totalValue === undefined) m.totalValue = (m.previousCostStock * m.previousCost) + (m.currentCostStock * m.unitPrice);
+  m.totalCost = (m.currentStock || 0) * (m.unitPrice || 0);
+  m.totalValue = m.totalCost;
 });
 
-// Initial cost histories for all seed items
+// Initial price histories for all seed items
 export const SEED_COST_HISTORIES = SEED_MATERIALS.map((m, idx) => ({
   id: idx + 1,
   materialId: m.id,
@@ -348,6 +346,6 @@ export const SEED_COST_HISTORIES = SEED_MATERIALS.map((m, idx) => ({
   percentageChange: 0,
   changeReason: "Initial Item Registration",
   changedBy: "System Administrator",
-  effectiveDate: "2026-10-14T07:37:16.49Z",
-  notes: `Initial standard unit cost recorded at ₹${m.unitPrice.toFixed(2)}`
+  effectiveDate: "2026-10-14T13:07:16.490+05:30",
+  notes: `Initial standard unit price recorded at ₹${m.unitPrice.toFixed(2)}`
 }));

@@ -3,12 +3,32 @@
 // Ensure UTC strings without trailing 'Z' are parsed correctly as UTC
 function parseDate(dateString) {
   if (!dateString) return null;
-  // If the string doesn't end with Z or an offset, assume UTC
   const s = String(dateString);
   if (!s.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(s)) {
     return new Date(s + 'Z');
   }
   return new Date(s);
+}
+
+// Generate current timestamp formatted as ISO with Indian Standard Time offset (+05:30)
+export function getNowISTISOString() {
+  const now = new Date();
+  // IST is UTC + 5:30
+  const istOffsetMs = (5 * 60 + 30) * 60 * 1000;
+  const istTime = new Date(now.getTime() + istOffsetMs + now.getTimezoneOffset() * 60000);
+
+  const pad = (n) => String(Math.floor(n)).padStart(2, '0');
+  const pad3 = (n) => String(Math.floor(n)).padStart(3, '0');
+
+  const yyyy = istTime.getFullYear();
+  const MM = pad(istTime.getMonth() + 1);
+  const dd = pad(istTime.getDate());
+  const hh = pad(istTime.getHours());
+  const mm = pad(istTime.getMinutes());
+  const ss = pad(istTime.getSeconds());
+  const ms = pad3(istTime.getMilliseconds());
+
+  return `${yyyy}-${MM}-${dd}T${hh}:${mm}:${ss}.${ms}+05:30`;
 }
 
 export function formatCurrency(amount) {
@@ -29,16 +49,19 @@ export function formatNumber(num) {
 export function formatDate(dateString) {
   if (!dateString) return 'N/A';
   const d = parseDate(dateString);
-  return d.toLocaleDateString('en-US', {
+  if (!d || isNaN(d.getTime())) return 'N/A';
+  return d.toLocaleDateString('en-IN', {
     year: 'numeric',
     month: 'short',
-    day: 'numeric'
+    day: 'numeric',
+    timeZone: 'Asia/Kolkata'
   });
 }
 
 export function formatDateTime(dateString) {
   if (!dateString) return 'N/A';
   const d = parseDate(dateString);
+  if (!d || isNaN(d.getTime())) return 'N/A';
   return d.toLocaleString('en-IN', {
     year: 'numeric',
     month: 'short',
