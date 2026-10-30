@@ -196,18 +196,11 @@ export default function CostHistoryModal({
               <div className="font-mono" style={{ fontSize: '1.65rem', fontWeight: 800, color: '#15803d', margin: '0.2rem 0' }}>
                 {formatCurrency(totalCost)}
               </div>
-              <div style={{ fontSize: '0.82rem', color: '#14532d', fontWeight: 600 }}>
-                Calculation Breakdown:
+              <div style={{ fontSize: '0.82rem', color: '#14532d', fontWeight: 500 }}>
+                Accumulated cost of on-hand inventory
               </div>
-              <div className="font-mono" style={{ fontSize: '0.75rem', color: '#166534', background: '#dcfce7', padding: '0.35rem 0.6rem', borderRadius: '4px', border: '1px solid #bbf7d0', lineHeight: 1.4 }}>
-                {currentStock > 0 ? (
-                  <>
-                    <div>Total Cost: <strong>{formatCurrency(totalCost)}</strong> (accumulated from stock intake)</div>
-                    <div style={{ marginTop: '0.15rem' }}>Effective Cost / Piece: {formatCurrency(totalCost)} ÷ {formatNumber(currentStock)} {material.unitOfMeasure} = <strong>{formatCurrency(effectiveCostPerUnit)}</strong> / unit</div>
-                  </>
-                ) : (
-                  '0 units on-hand (Total Cost: ₹0.00)'
-                )}
+              <div style={{ fontSize: '0.75rem', color: '#166534' }}>
+                Maintained directly as stock is added and issued
               </div>
             </div>
           </div>
@@ -270,15 +263,21 @@ export default function CostHistoryModal({
 
                         {/* Price Shift */}
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                            <span className="font-mono" style={{ color: prevC > 0 ? '#64748b' : '#94a3b8', textDecoration: prevC > 0 ? 'line-through' : 'none' }}>
-                              {prevC > 0 ? formatCurrency(prevC) : '₹0.00'}
-                            </span>
-                            <ArrowRight size={13} color="#94a3b8" />
+                          {isInitial ? (
                             <span className="font-mono" style={{ fontWeight: 700, color: '#0f172a' }}>
                               {formatCurrency(newC)}
                             </span>
-                          </div>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span className="font-mono" style={{ color: '#64748b', textDecoration: 'line-through' }}>
+                                {formatCurrency(prevC)}
+                              </span>
+                              <ArrowRight size={13} color="#94a3b8" />
+                              <span className="font-mono" style={{ fontWeight: 700, color: '#0f172a' }}>
+                                {formatCurrency(newC)}
+                              </span>
+                            </div>
+                          )}
                         </td>
 
                         {/* Difference */}
