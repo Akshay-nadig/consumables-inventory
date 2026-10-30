@@ -1,13 +1,35 @@
 // Formatting utilities for Consumables Inventory System
 
-// Ensure UTC strings without trailing 'Z' are parsed correctly as UTC
+// Safely parse date strings into Date objects.
+// If a string contains no timezone offset (e.g. from SQL Server or local timestamp),
+// it is treated as Indian Standard Time (+05:30) to avoid artificial +5.5 hr shifts.
 function parseDate(dateString) {
   if (!dateString) return null;
-  const s = String(dateString);
-  if (!s.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(s)) {
-    return new Date(s + 'Z');
+  if (dateString instanceof Date) return isNaN(dateString.getTime()) ? null : dateString;
+  const s = String(dateString).trim();
+  if (!s) return null;
+
+  // Plain date format: YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    return new Date(`${s}T00:00:00+05:30`);
   }
-  return new Date(s);
+
+  // Already has explicit UTC indicator ('Z') or offset (+HH:MM or -HH:MM)
+  if (s.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(s)) {
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // ISO or SQL string without offset (e.g. "2026-10-30T14:54:00" or "2026-10-30 14:54:00")
+  // Since our system operates in IST, treat it as +05:30
+  const normalized = s.includes(' ') ? s.replace(' ', 'T') : s;
+  const d = new Date(`${normalized}+05:30`);
+  if (!isNaN(d.getTime())) {
+    return d;
+  }
+
+  const fallback = new Date(s);
+  return isNaN(fallback.getTime()) ? null : fallback;
 }
 
 // Generate current timestamp formatted as ISO with Indian Standard Time offset (+05:30)
