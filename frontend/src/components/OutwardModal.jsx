@@ -338,6 +338,7 @@ export default function OutwardModal({
                   className="form-input font-mono"
                   value={quantity}
                   onChange={e => setQuantity(e.target.value)}
+                  onWheel={e => e.target.blur()}
                   required
                 />
               </div>

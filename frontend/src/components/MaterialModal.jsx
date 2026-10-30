@@ -248,6 +248,7 @@ export default function MaterialModal({
                   placeholder="0"
                   value={initialStock}
                   onChange={e => setInitialStock(e.target.value)}
+                  onWheel={e => e.target.blur()}
                   disabled={isEdit}
                 />
                 <span className="form-help-text">{isEdit ? 'Adjust stock via Inward/Outward movements' : 'Initial count in physical store (optional)'}</span>
@@ -263,6 +264,7 @@ export default function MaterialModal({
                   placeholder="e.g. 5"
                   value={minimumReorderLevel}
                   onChange={e => setMinimumReorderLevel(e.target.value)}
+                  onWheel={e => e.target.blur()}
                   required
                 />
                 <span className="form-help-text">Triggers low-stock alert when reached</span>
@@ -279,6 +281,7 @@ export default function MaterialModal({
                   placeholder="0.00"
                   value={unitPrice}
                   onChange={e => setUnitPrice(e.target.value)}
+                  onWheel={e => e.target.blur()}
                   required
                 />
                 <span className="form-help-text">
